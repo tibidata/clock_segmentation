@@ -15,8 +15,11 @@ img = segmenter.remove_noise()
 
 lines = segmenter.hough_lines()
 
-hand_1, hand_2 = segmenter.cluster_points()
+hands = segmenter.cluster_points()
 
-print(hand_1,hand_2)
+intersection = segmenter.calculate_time()
+
+segmenter.show_detected_lines()
+print(intersection)
 
 
