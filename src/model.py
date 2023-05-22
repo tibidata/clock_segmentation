@@ -1,4 +1,5 @@
 import math
+import warnings
 
 import cv2
 import numpy as np
@@ -18,7 +19,7 @@ class Segmenter:
         self.sigma_x_g = sigma_x_g
 
         # Loading image
-
+        warnings.filterwarnings('ignore')
         self.loader = data_loader.DataLoader(self.image_path)
         self.original_image = self.loader.load_image()
 
@@ -135,50 +136,66 @@ class Segmenter:
         return self.hand_coord_list
 
     def calculate_time(self):
+        """
+        Calculates the time
+        :return:str: string of the time
+        """
+
+        # Calculating the length of the hands to decide which is the hour and which is the minute
         hand_1_length = math.dist(self.hand_coord_list[0][:2], self.hand_coord_list[0][-2:])
         hand_2_length = math.dist(self.hand_coord_list[1][:2], self.hand_coord_list[1][-2:])
 
+        # Setting the smaller hand as the hour hand and the longer as the minute
         minute_hand_index = [hand_1_length, hand_2_length].index(max([hand_1_length, hand_2_length]))
         hour_hand_index = [hand_1_length, hand_2_length].index(min([hand_1_length, hand_2_length]))
 
         stacked = np.vstack([self.hand_coord_list[0][:2], self.hand_coord_list[0][-2:], self.hand_coord_list[1][:2],
                              self.hand_coord_list[1][-2:]])
 
+        # Calculating the intersection of the hands
         h = np.hstack((stacked, np.ones((4, 1))))
 
-        l1 = np.cross(h[0], h[1])  # get first line
+        l1 = np.cross(h[0], h[1])
         l2 = np.cross(h[2], h[3])
 
         x, y, z = np.cross(l1, l2)  # point of intersection
         if z == 0:  # lines are parallel
             return float('inf'), float('inf')
 
-        horizontal_line_coord = [x / z, y / z, x / z, y / z - 100]
+        vertical_line_coord = [x / z, y / z, x / z, y / z - 100]
 
         vect_hand1 = np.array(self.hand_coord_list[0][:2]) - np.array(self.hand_coord_list[0][-2:])
         vect_hand2 = np.array(self.hand_coord_list[1][:2]) - np.array(self.hand_coord_list[1][-2:])
 
-        vect_horizontal = np.array(self.hand_coord_list[2][:2]) - np.array(self.hand_coord_list[2][-2:])
+        # Creating a vertical line from the intersection
+        vect_vertical = np.array(vertical_line_coord[:2]) - np.array(vertical_line_coord[-2:])
 
         angles_list = []
         vect_hand_list = [vect_hand1, vect_hand2]
 
+        # Calculating the angles between the vertical line and the hands
         for vect in vect_hand_list:
-            alpha = math.degrees(math.acos(np.dot(vect, vect_horizontal) /
+            alpha = math.degrees(math.acos(np.dot(vect, vect_vertical) /
                                            (np.sqrt(vect.dot(vect)) * np.sqrt(
-                                               vect_horizontal.dot(vect_horizontal)))))
+                                               vect_vertical.dot(vect_vertical)))))
 
-            if np.dot(vect, vect_horizontal) < 0:
+            # Handling the case when one of the hands is on the left of the vertical line
+            if np.dot(vect, vect_vertical) < 0:
                 angles_list.append(alpha + 180)
             else:
                 angles_list.append(alpha)
 
+        # Calculating the time based on the angles
         minutes = round(angles_list[minute_hand_index] / 6)
         hours = round(angles_list[hour_hand_index] / 30)
 
         return 'The time is ' + str(hours) + ' hours and ' + str(minutes) + ' minutes'
 
     def show_detected_lines(self):
+        """
+        Shows the detected lines on the original image
+        :return: None
+        """
 
         X1 = []
         X2 = []
@@ -187,7 +204,6 @@ class Segmenter:
 
         # Store and draw the lines:
         for currentLine in self.hand_coord_list:
-            print(currentLine)
             # First point:
             x1 = int(currentLine[0])
             y1 = int(currentLine[1])
@@ -204,3 +220,16 @@ class Segmenter:
             cv2.line(self.original_image, (x1, y1), (x2, y2), (0, 0, 255), 2)
             cv2.imshow("Lines", self.original_image)
             cv2.waitKey(0)
+
+    def segment(self):
+        """
+        Runs the image pre-processing steps, hough lines transformation, clustering and calculates time
+        :return: str: The string of the current time
+        """
+        self.bgr_to_grey()
+        self.remove_noise()
+        self.hough_lines()
+        self.cluster_points()
+        time = self.calculate_time()
+
+        return time
