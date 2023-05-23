@@ -13,6 +13,7 @@ class Segmenter:
     def __init__(self, image_path: str,
                  gauss_blur: bool = False, kernel_size_g: tuple = (5, 5), sigma_x_g: int = 0):
 
+        self.erodeImg = None
         self.image_path = image_path
         self.gauss_blur = gauss_blur
         self.kernel_size_g = kernel_size_g
@@ -81,13 +82,13 @@ class Segmenter:
 
         # Apply erosion to the image
 
-        erodeImg = cv2.morphologyEx(self.gray_image, cv2.MORPH_ERODE, structuringElement, None, None, opIterations,
-                                    cv2.BORDER_REFLECT101)
+        self.erodeImg = cv2.morphologyEx(self.gray_image, cv2.MORPH_ERODE, structuringElement, None, None,
+                                         opIterations, cv2.BORDER_REFLECT101)
 
         # Apply dilation on eroded image
 
-        self.denoised_image = cv2.morphologyEx(erodeImg, cv2.MORPH_DILATE, structuringElement, None, None, opIterations,
-                                               cv2.BORDER_REFLECT101)
+        self.denoised_image = cv2.morphologyEx(self.erodeImg, cv2.MORPH_DILATE, structuringElement, None, None,
+                                               opIterations, cv2.BORDER_REFLECT101)
         return self.denoised_image
 
     def hough_lines(self):
@@ -162,7 +163,11 @@ class Segmenter:
         if z == 0:  # lines are parallel
             return float('inf'), float('inf')
 
+        #Creating a vertical line
+
         vertical_line_coord = [x / z, y / z, x / z, y / z - 100]
+
+        # Creating vectors of the coordinates
 
         vect_hand1 = np.array(self.hand_coord_list[0][:2]) - np.array(self.hand_coord_list[0][-2:])
         vect_hand2 = np.array(self.hand_coord_list[1][:2]) - np.array(self.hand_coord_list[1][-2:])
